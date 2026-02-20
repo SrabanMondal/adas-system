@@ -42,7 +42,7 @@ class TRTObjectInferenceEngine:
                 self.host_inputs.append(host_mem)
                 self.cuda_inputs.append(cuda_mem)
             else:
-                self.output_shape = shape  # e.g. (1, 336, 84)
+                self.output_shape = shape  # e.g. (1, 84, 2100)
                 self.host_outputs.append(host_mem)
                 self.cuda_outputs.append(cuda_mem)
 
@@ -59,7 +59,7 @@ class TRTObjectInferenceEngine:
 
     def infer(self, frame: np.ndarray) -> np.ndarray:
         """
-        Returns (N, 84) detections exactly like OpenVINO.
+        Returns (1, 300, 6) detections exactly like OpenVINO.
         """
         img = self._preprocess(frame)
         np.copyto(self.host_inputs[0], img.ravel())
@@ -69,6 +69,62 @@ class TRTObjectInferenceEngine:
         cuda.memcpy_dtoh_async(self.host_outputs[0], self.cuda_outputs[0], self.stream)
         self.stream.synchronize()
 
-        # Expect engine output shape = (1, 336, 84)
+        # Expect engine output shape = (1, 84, 2100)
         arr = self.host_outputs[0].reshape(self.output_shape)
-        return arr[0]  # (336, 84)
+        return self.decode_v5_to_v26(arr) # (300,6)
+    
+    def _decode_v5_to_v26(self, raw_output, conf_thres=0.25, iou_thres=0.45, max_det=300):
+        """
+        Transforms YOLOv5 1x84x2100 raw output to YOLOv26-style 1x300x6.
+        Shape: [N, 6] -> [x1, y1, x2, y2, conf, class_id]
+        """
+        # 1. Reshape and Filter (conf = obj_conf * class_conf)
+        # raw_output is (84, 2100) -> Transpose to (2100, 84)
+        x = raw_output.T
+        
+        # YOLOv5: [cx, cy, w, h, obj_conf, cls0...cls79]
+        obj_conf = x[:, 4]
+        cls_confs = x[:, 5:]
+        
+        # Calculate combined confidence
+        best_cls = np.argmax(cls_confs, axis=1)
+        best_cls_conf = cls_confs[np.arange(len(x)), best_cls]
+        combined_conf = obj_conf * best_cls_conf
+        
+        # Filter by threshold
+        mask = combined_conf > conf_thres
+        x = x[mask]
+        combined_conf = combined_conf[mask]
+        best_cls = best_cls[mask]
+        
+        if len(x) == 0:
+            return np.zeros((max_det, 6))
+
+        # 2. Convert cx, cy, w, h -> x1, y1, x2, y2
+        # Input size is 128
+        boxes = np.zeros((len(x), 4))
+        boxes[:, 0] = x[:, 0] - x[:, 2] / 2 # x1
+        boxes[:, 1] = x[:, 1] - x[:, 3] / 2 # y1
+        boxes[:, 2] = x[:, 0] + x[:, 2] / 2 # x2
+        boxes[:, 3] = x[:, 1] + x[:, 3] / 2 # y2
+
+        # 3. Fast Vectorized NMS (Non-Maximum Suppression)
+        indices = cv2.dnn.NMSBoxes(
+            boxes.tolist(), 
+            combined_conf.tolist(), 
+            conf_thres, 
+            iou_thres
+        )
+
+        # 4. Final Formatting to 300x6
+        final_output = np.zeros((max_det, 6))
+        if len(indices) > 0:
+            # Flatten indices if needed
+            idx = np.array(indices).flatten()[:max_det]
+            count = len(idx)
+            
+            final_output[:count, :4] = boxes[idx]
+            final_output[:count, 4] = combined_conf[idx]
+            final_output[:count, 5] = best_cls[idx]
+
+        return final_output
