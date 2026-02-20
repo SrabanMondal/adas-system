@@ -51,7 +51,7 @@ def run_yolop_debug(
 
     frame_id = 0
     infer_times = []
-
+    overlay = np.zeros((H, W, 3), dtype=np.uint8)
     # -------------------------------------------------------------------------
     # PROCESS VIDEO
     # -------------------------------------------------------------------------
@@ -90,12 +90,11 @@ def run_yolop_debug(
 
         # Unletterbox mask to original size
         mask_resized = unletterbox(drive_mask_320, (H, W), size=input_size)
-
+        overlay.fill(0)
+        overlay[mask_resized == 1] = (255, 0, 0)
         # Visualization overlay
-        colored = cv2.applyColorMap(mask_resized, cv2.COLORMAP_JET)
-        debug_frame = cv2.addWeighted(frame, 0.65, colored, 0.35, 0)
-
-        writer.write(debug_frame)
+        vis = cv2.addWeighted(frame, 1.0, overlay, 0.4, 0)
+        writer.write(vis)
 
     # -------------------------------------------------------------------------
     # FINISH
