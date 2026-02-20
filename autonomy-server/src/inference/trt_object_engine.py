@@ -71,7 +71,7 @@ class TRTObjectInferenceEngine:
 
         # Expect engine output shape = (1, 84, 2100)
         arr = self.host_outputs[0].reshape(self.output_shape)
-        return self.decode_v5_to_v26(arr) # (300,6)
+        return self._decode_v5_to_v26(arr) # (300,6)
     
     def _decode_v5_to_v26(self, raw_output, conf_thres=0.25, iou_thres=0.45, max_det=300):
         """
