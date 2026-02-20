@@ -71,60 +71,80 @@ class TRTObjectInferenceEngine:
 
         # Expect engine output shape = (1, 84, 2100)
         arr = self.host_outputs[0].reshape(self.output_shape)
-        return self._decode_v5_to_v26(arr) # (300,6)
+        return self._postprocess(arr)
     
-    def _decode_v5_to_v26(self, raw_output, conf_thres=0.25, iou_thres=0.45, max_det=300):
+    def _postprocess(self, raw, conf_thres=0.25, iou_thres=0.7):
         """
-        Transforms YOLOv5 1x84x2100 raw output to YOLOv26-style 1x300x6.
-        Shape: [N, 6] -> [x1, y1, x2, y2, conf, class_id]
+        Decode raw YOLOv8 ONNX output into final detections.
+
+        Parameters
+        ----------
+        raw : np.ndarray
+            Raw model output, shape (1, 84, N) where 84 = 4 box + 80 classes
+            and N = number of anchors (e.g. 2100 for 320×320 input).
+            Box coords (cx, cy, w, h) are in input pixel space.
+        conf_thres : float
+            Minimum class confidence to keep a detection.
+        iou_thres : float
+            IoU threshold for NMS.
+
+        Returns
+        -------
+        np.ndarray, shape (M, 6)
+            Each row: [x1, y1, x2, y2, confidence, class_id]
+            Coordinates are in the model's input pixel space (e.g. 320×320).
+            Returns empty (0, 6) array if no detections.
         """
-        # 1. Reshape and Filter (conf = obj_conf * class_conf)
-        # raw_output is (84, 2100) -> Transpose to (2100, 84)
-        x = raw_output.T
-        
-        # YOLOv5: [cx, cy, w, h, obj_conf, cls0...cls79]
-        obj_conf = x[:, 4]
-        cls_confs = x[:, 5:]
-        
-        # Calculate combined confidence
-        best_cls = np.argmax(cls_confs, axis=1)
-        best_cls_conf = cls_confs[np.arange(len(x)), best_cls]
-        combined_conf = obj_conf * best_cls_conf
-        
-        # Filter by threshold
-        mask = combined_conf > conf_thres
-        x = x[mask]
-        combined_conf = combined_conf[mask]
-        best_cls = best_cls[mask]
-        
-        if len(x) == 0:
-            return np.zeros((max_det, 6))
+        # (1, 84, N) → (N, 84)
+        pred = np.squeeze(raw).T
 
-        # 2. Convert cx, cy, w, h -> x1, y1, x2, y2
-        # Input size is 128
-        boxes = np.zeros((len(x), 4))
-        boxes[:, 0] = x[:, 0] - x[:, 2] / 2 # x1
-        boxes[:, 1] = x[:, 1] - x[:, 3] / 2 # y1
-        boxes[:, 2] = x[:, 0] + x[:, 2] / 2 # x2
-        boxes[:, 3] = x[:, 1] + x[:, 3] / 2 # y2
+        boxes_xywh = pred[:, :4]
+        class_scores = pred[:, 4:]
 
-        # 3. Fast Vectorized NMS (Non-Maximum Suppression)
-        indices = cv2.dnn.NMSBoxes(
-            boxes.tolist(), 
-            combined_conf.tolist(), 
-            conf_thres, 
-            iou_thres
-        )
+        # Best class per anchor
+        class_ids = np.argmax(class_scores, axis=1)
+        confidences = class_scores[np.arange(len(pred)), class_ids]
 
-        # 4. Final Formatting to 300x6
-        final_output = np.zeros((max_det, 6))
-        if len(indices) > 0:
-            # Flatten indices if needed
-            idx = np.array(indices).flatten()[:max_det]
-            count = len(idx)
-            
-            final_output[:count, :4] = boxes[idx]
-            final_output[:count, 4] = combined_conf[idx]
-            final_output[:count, 5] = best_cls[idx]
+        # Confidence filter
+        mask = confidences > conf_thres
+        boxes_xywh = boxes_xywh[mask]
+        confidences = confidences[mask]
+        class_ids = class_ids[mask]
 
-        return final_output
+        if len(boxes_xywh) == 0:
+            return np.empty((0, 6), dtype=np.float32)
+
+        # xywh → xyxy  (coords already in pixel space)
+        boxes = np.empty((len(boxes_xywh), 4), dtype=np.float32)
+        boxes[:, 0] = boxes_xywh[:, 0] - boxes_xywh[:, 2] / 2   # x1
+        boxes[:, 1] = boxes_xywh[:, 1] - boxes_xywh[:, 3] / 2   # y1
+        boxes[:, 2] = boxes_xywh[:, 0] + boxes_xywh[:, 2] / 2   # x2
+        boxes[:, 3] = boxes_xywh[:, 1] + boxes_xywh[:, 3] / 2   # y2
+
+        # Class-aware NMS
+        keep = []
+        for cls in np.unique(class_ids):
+            cls_mask = class_ids == cls
+            cls_boxes = boxes[cls_mask]
+            cls_scores = confidences[cls_mask]
+
+            idxs = cv2.dnn.NMSBoxes(
+                cls_boxes.tolist(),
+                cls_scores.tolist(),
+                conf_thres,
+                iou_thres,
+            )
+            if len(idxs) > 0:
+                keep.extend(np.where(cls_mask)[0][idxs.flatten()])
+
+        if len(keep) == 0:
+            return np.empty((0, 6), dtype=np.float32)
+
+        keep = np.array(keep)
+        # Stack into (M, 6): [x1, y1, x2, y2, conf, class_id]
+        detections = np.column_stack([
+            boxes[keep],
+            confidences[keep],
+            class_ids[keep].astype(np.float32),
+        ])
+        return detections
