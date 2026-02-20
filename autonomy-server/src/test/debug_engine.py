@@ -5,7 +5,7 @@ import numpy as np
 import os
 import time
 
-YOLO_ENGINE  = "src/weights/yolo/yolov.engine"
+YOLO_ENGINE  = "src/weights/yolo/yolo.engine"
 YOLOP_ENGINE = "src/weights/yolop/yolop.engine"
 
 
@@ -65,8 +65,8 @@ def probe_engine(engine_path: str):
     print(f"• Number of bindings : {engine.num_bindings}")
     print(f"• Max batch size     : {engine.max_batch_size}")
     print(f"• Optimization profiles: {engine.num_optimization_profiles}")
-    print(f"• FP16 enabled: {engine.has_fast_fp16}")
-    print(f"• INT8 enabled: {engine.has_fast_int8}")
+    # print(f"• FP16 enabled: {engine.has_fast_fp16}")
+    # print(f"• INT8 enabled: {engine.has_fast_int8}")
 
     line()
     yellow("🔎 Binding Details:")

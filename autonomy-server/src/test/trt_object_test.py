@@ -55,28 +55,28 @@ class TRTDebugRunner:
                 # 3. Filter for valid boxes
                 # Format per row = [cx, cy, w, h, conf, cls_probs...]
                 # -----------------------------
-                dets = []
-                for row in raw:
-                    conf = row[4]
-                    if conf < 0.25:
-                        continue
+                # dets = []
+                # for row in raw:
+                #     conf = row[4]
+                #     if conf < 0.25:
+                #         continue
 
-                    cls_id = np.argmax(row[5:])
-                    # Convert YOLO center format → xyxy
-                    cx, cy, w, h = row[:4]
-                    x1 = cx - w / 2
-                    y1 = cy - h / 2
-                    x2 = cx + w / 2
-                    y2 = cy + h / 2
+                #     cls_id = np.argmax(row[5:])
+                #     # Convert YOLO center format → xyxy
+                #     cx, cy, w, h = row[:4]
+                #     x1 = cx - w / 2
+                #     y1 = cy - h / 2
+                #     x2 = cx + w / 2
+                #     y2 = cy + h / 2
 
-                    dets.append([x1, y1, x2, y2, conf, cls_id])
+                #     dets.append([x1, y1, x2, y2, conf, cls_id])
 
-                dets = np.array(dets)
+                # dets = np.array(dets)
 
                 # -----------------------------
                 # 4. Scale boxes back to original resolution
                 # -----------------------------
-                dets_scaled = scale_boxes(dets, (H, W), size=320)
+                dets_scaled = scale_boxes(raw, (H, W), size=320)
 
                 # -----------------------------
                 # 5. Draw boxes
@@ -108,5 +108,5 @@ class TRTDebugRunner:
 
 
 if __name__ == "__main__":
-    runner = TRTDebugRunner("weights/yolo/yolo.engine")
+    runner = TRTDebugRunner("src/weights/yolo/yolo.engine")
     runner.run_on_video("src/data/input30.mp4")
