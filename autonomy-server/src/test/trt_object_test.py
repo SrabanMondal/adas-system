@@ -44,7 +44,7 @@ class TRTDebugRunner:
                 # -----------------------------
                 # 1. LETTERBOX to 320x320
                 # -----------------------------
-                img320 = letterbox(frame, size=320)
+                img320 = letterbox(frame, size=256)
 
                 # -----------------------------
                 # 2. Run TensorRT inference
@@ -76,7 +76,7 @@ class TRTDebugRunner:
                 # -----------------------------
                 # 4. Scale boxes back to original resolution
                 # -----------------------------
-                dets_scaled = scale_boxes(raw, (H, W), size=320)
+                dets_scaled = scale_boxes(raw, (H, W), size=256)
 
                 # -----------------------------
                 # 5. Draw boxes

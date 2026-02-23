@@ -131,9 +131,9 @@ def benchmark_engine(engine_path, iterations=100):
     context, stream, host_inputs, device_inputs, host_outputs, device_outputs, bindings = allocate_buffers(engine)
 
     # ---------------------------------------------------------------------
-    # Create dummy input that matches expected (1,3,320,320)
+    # Create dummy input that matches expected (1,3,256,256)
     # ---------------------------------------------------------------------
-    dummy = np.random.rand(1, 3, 320, 320).astype(np.float32)
+    dummy = np.random.rand(1, 3, 256, 256).astype(np.float32)
     np.copyto(host_inputs[0], dummy.ravel())
 
     green("✓ Dummy input created.")

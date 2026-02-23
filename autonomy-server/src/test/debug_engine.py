@@ -26,10 +26,10 @@ def blue(msg):   print(f"\033[94m{msg}\033[0m")
 # ------------------------------------------------------------------------------
 def make_dummy_input():
     """
-    Creates a dummy (1,3,320,320) float32 tensor.
+    Creates a dummy (1,3,256,256) float32 tensor.
     Equivalent to: RGB normalized input.
     """
-    dummy = np.random.rand(1, 3, 320, 320).astype(np.float32)
+    dummy = np.random.rand(1, 3, 256, 256).astype(np.float32)
     return dummy
 
 

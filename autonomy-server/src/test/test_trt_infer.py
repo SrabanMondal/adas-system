@@ -17,7 +17,7 @@ OUTPUT_VIDEO = "src/data/output30.mp4"
 YOLOP_MODEL_PATH = "src/weights/yolop/yolop.engine"
 YOLO_MODEL_PATH = "src/weights/yolo/yolo.engine"
 DEVICE = "GPU"
-IMG_SIZE = 320
+IMG_SIZE = 256
 
 def color_for(src):
     if src == "LANE_DETECTED": return (255,255,0)

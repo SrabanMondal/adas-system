@@ -8,8 +8,8 @@ class InferenceEngine:
     def __init__(self, engine_path: str):
         """
         TensorRT equivalent of the OpenVINO InferenceEngine.
-        Accepts (320, 320, 3) BGR uint8 input.
-        Returns output mask [C, 320, 320] -- no batch dim.
+        Accepts (256, 256, 3) BGR uint8 input.
+        Returns output mask [C, 256, 256] -- no batch dim.
         """
 
         self.logger = trt.Logger(trt.Logger.WARNING)
@@ -55,8 +55,8 @@ class InferenceEngine:
     # -------------------------------------------------------
     def _preprocess(self, img_bgr: np.ndarray) -> np.ndarray:
         """
-        Input:  (320, 320, 3) BGR uint8
-        Output: (1, 3, 320, 320) float32 normalized RGB
+        Input:  (256, 256, 3) BGR uint8
+        Output: (1, 3, 256, 256) float32 normalized RGB
         """
 
         # BGR -> RGB
@@ -73,14 +73,14 @@ class InferenceEngine:
     # -------------------------------------------------------
     # Inference (OpenVINO-compatible API)
     # -------------------------------------------------------
-    def infer(self, img_320_bgr: np.ndarray) -> np.ndarray:
+    def infer(self, img_256_bgr: np.ndarray) -> np.ndarray:
         """
-        Input: (320,320,3) uint8 BGR
-        Output: (C,320,320) raw drive mask
+        Input: (256,256,3) uint8 BGR
+        Output: (C,256,256) raw drive mask
         """
 
         # 1. Preprocess
-        input_tensor = self._preprocess(img_320_bgr)
+        input_tensor = self._preprocess(img_256_bgr)
 
         # 2. Copy to device
         np.copyto(self.host_inputs[0], input_tensor.ravel())
@@ -93,7 +93,7 @@ class InferenceEngine:
         cuda.memcpy_dtoh_async(self.host_outputs[0], self.cuda_outputs[0], self.stream)
         self.stream.synchronize()
 
-        # 5. Reshape output (1,C,320,320)
+        # 5. Reshape output (1,C,256,256)
         output = self.host_outputs[0].reshape(self.output_shape)
 
         # 6. Remove batch dim → (C,320,320)

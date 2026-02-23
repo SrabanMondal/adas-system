@@ -21,7 +21,7 @@ def run_yolop_debug(
     engine_path="src/weights/yolop/yolop.engine",
     video_path="src/data/input30.mp4",
     output_path="src/data/test_debug_yolop.mp4",
-    input_size=320
+    input_size=256
 ):
 
     # Validate files
@@ -68,7 +68,7 @@ def run_yolop_debug(
 
         # Inference
         t0 = time.perf_counter()
-        mask_output = engine.infer(lb)   # (C,320,320)
+        mask_output = engine.infer(lb)   # (C,256,256)
         infer_ms = (time.perf_counter() - t0) * 1000
         infer_times.append(infer_ms)
 
@@ -83,13 +83,13 @@ def run_yolop_debug(
 
         # If 2 channels → probably (drive, lane). Visualize each.
         if mask_output.shape[0] == 1:
-            drive_mask_320 = (mask_output[0] > 0).astype(np.uint8)
+            drive_mask_256 = (mask_output[0] > 0).astype(np.uint8)
         else:
-            drive_mask_320 = (mask_output[1] > mask_output[0]).astype(np.uint8)
+            drive_mask_256 = (mask_output[1] > mask_output[0]).astype(np.uint8)
 
 
         # Unletterbox mask to original size
-        mask_resized = unletterbox(drive_mask_320, (H, W), size=input_size)
+        mask_resized = unletterbox(drive_mask_256, (H, W), size=input_size)
         overlay.fill(0)
         overlay[mask_resized == 1] = (255, 0, 0)
         # Visualization overlay

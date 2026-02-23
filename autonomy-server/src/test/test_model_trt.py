@@ -22,8 +22,8 @@ def main():
         return
 
     # Create dummy frame (H, W, C) 
-    # Using 640x640 to match the expected model input and minimize resize overhead
-    dummy = np.random.randint(0, 256, (640, 640, 3), dtype=np.uint8)
+    # Using 256x256 to match the expected model input and minimize resize overhead
+    dummy = np.random.randint(0, 256, (256, 256, 3), dtype=np.uint8)
 
     print(f"Warming up for {WARMUP} iterations...")
     for _ in range(WARMUP):

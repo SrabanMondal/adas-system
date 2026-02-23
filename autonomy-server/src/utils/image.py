@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from typing import Tuple
-def letterbox(img, size=320) -> np.ndarray:
+def letterbox(img, size=256) -> np.ndarray:
     h, w = img.shape[:2]
     scale = size / max(h, w)
     nh, nw = int(h * scale), int(w * scale)
@@ -19,7 +19,7 @@ def letterbox(img, size=320) -> np.ndarray:
     )
     return boxed
 
-def unletterbox(mask_320, orig_shape, size=320) -> np.ndarray:
+def unletterbox(mask_320, orig_shape, size=256) -> np.ndarray:
     orig_h, orig_w = orig_shape
 
     # 1. Re-calculate scale exactly as done in letterbox
@@ -52,7 +52,7 @@ def unletterbox(mask_320, orig_shape, size=320) -> np.ndarray:
 def scale_boxes(
     boxes: np.ndarray, 
     orig_shape: Tuple[int, int], 
-    size: int = 320
+    size: int = 256
 ) -> np.ndarray:
     """
     Rescale YOLO boxes (x1, y1, x2, y2, conf, cls) from 640x640 letterbox 
