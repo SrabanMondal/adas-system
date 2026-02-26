@@ -6,7 +6,6 @@ import threading
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn
-from contextlib import asynccontextmanager
 
 from src.inference.tensorrt_engine import InferenceEngine
 from src.utils.image import letterbox, unletterbox, scale_boxes
