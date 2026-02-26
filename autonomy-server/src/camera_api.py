@@ -1,0 +1,147 @@
+import cv2
+import numpy as np
+import time
+import argparse
+import threading
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+from contextlib import asynccontextmanager
+
+from src.inference.tensorrt_engine import InferenceEngine
+from src.utils.image import letterbox, unletterbox, scale_boxes
+from src.adas.perception.road.segmentation import clean_road_mask
+from src.adas.control.mpcv2 import CenterlineMPC
+from src.adas.perception.road.road_v2 import RoadPerception
+from src.inference.trt_object_engine import TRTObjectInferenceEngine
+from src.adas.perception.object.object_brake import ObjectPerception
+
+YOLOP_MODEL_PATH = "src/weights/yolop/yolop.engine"
+YOLO_MODEL_PATH = "src/weights/yolo/yolo.engine"
+IMG_SIZE = 256
+
+# Global telemetry state
+telemetry = {
+    "steer": 0.0,
+    "brake": 0.0,
+    "fps": 0.0,
+    "latency": 0.0
+}
+telemetry_lock = threading.Lock()
+
+# Global running flag
+is_running = False
+camera_thread = None
+
+def inference_loop():
+    global is_running, telemetry
+    
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[ERROR] Could not open camera 0")
+        return
+        
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    print(f"[INFO] Camera initialized at {w}x{h}")
+
+    # Initialize engines
+    engine = InferenceEngine(YOLOP_MODEL_PATH)
+    road_engine = RoadPerception()
+    object_engine = TRTObjectInferenceEngine(YOLO_MODEL_PATH)
+    object_perception = ObjectPerception(w, h)
+    mpc = CenterlineMPC()
+    
+    print("[INFO] ADAS Models Initialized. Starting inference loop.")
+
+    frame_idx = 0
+    t_last_inference = time.perf_counter()
+
+    while is_running:
+        # We read from camera continuously but run inference on every 4th frame
+        # to loosely match an ~7.5 FPS processing rate on a 30 FPS camera.
+        ret = cap.grab()
+        if not ret:
+            time.sleep(0.01)
+            continue
+            
+        frame_idx += 1
+        if frame_idx % 4 != 0:
+            continue
+            
+        ret, frame = cap.retrieve()
+        if not ret:
+            continue
+            
+        t_start = time.perf_counter()
+        
+        # Preprocessing
+        boxed = letterbox(frame)
+        
+        # Inference
+        drive_logits = engine.infer(boxed)
+        object_outputs = object_engine.infer(boxed)
+        
+        # Postprocessing Road
+        if drive_logits.shape[0] == 1:
+            drive_mask_320 = (drive_logits[0] > 0).astype(np.uint8)
+        else:
+            drive_mask_320 = (drive_logits[1] > drive_logits[0]).astype(np.uint8)
+            
+        drive_mask = unletterbox(drive_mask_320, frame.shape[:2])
+        out = road_engine.process(drive_mask)
+        center_pts = out["center_points"]
+        
+        # Control MPC
+        steer, traj = mpc.compute(
+            road_mask=drive_mask,
+            center_points=center_pts,
+            gps_bias=0
+        )
+        
+        # Postprocessing Objects
+        unletterboxed_objs = scale_boxes(object_outputs, frame.shape[:2])
+        brake, dist = object_perception.filter_and_control(unletterboxed_objs, 10)
+        
+        t_end = time.perf_counter()
+        latency = (t_end - t_start) * 1000
+        fps = 1.0 / (t_end - t_last_inference) if (t_end - t_last_inference) > 0 else 0
+        t_last_inference = t_end
+        
+        # Update global telemetry with simple float conversion
+        with telemetry_lock:
+            telemetry["steer"] = float(steer)
+            telemetry["brake"] = float(brake)
+            telemetry["fps"] = float(fps)
+            telemetry["latency"] = float(latency)
+
+    cap.release()
+    print("[INFO] Camera released. Inference thread stopped.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global is_running, camera_thread
+    
+    is_running = True
+    camera_thread = threading.Thread(target=inference_loop, daemon=True)
+    camera_thread.start()
+    
+    yield
+    
+    is_running = False
+    if camera_thread:
+        camera_thread.join()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/api/telemetry")
+def get_telemetry():
+    with telemetry_lock:
+        return telemetry
+
+# Mount static folder for frontend
+app.mount("/", StaticFiles(directory="src/static", html=True), name="static")
+
+if __name__ == "__main__":
+    uvicorn.run("src.camera_api:app", host="0.0.0.0", port=8000, reload=False)
