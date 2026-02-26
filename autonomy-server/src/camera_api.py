@@ -6,7 +6,7 @@ import threading
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn
-
+ 
 from src.inference.tensorrt_engine import InferenceEngine
 from src.utils.image import letterbox, unletterbox, scale_boxes
 from src.adas.perception.road.segmentation import clean_road_mask
@@ -33,6 +33,7 @@ is_running = False
 camera_thread = None
 
 def inference_loop():
+    import pycuda.autoinit 
     global is_running, telemetry
     
     cap = cv2.VideoCapture(0)
