@@ -119,21 +119,24 @@ def inference_loop():
     cap.release()
     print("[INFO] Camera released. Inference thread stopped.")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+
+app = FastAPI()
+
+@app.on_event("startup")
+def start_background_thread():
     global is_running, camera_thread
-    
     is_running = True
     camera_thread = threading.Thread(target=inference_loop, daemon=True)
     camera_thread.start()
-    
-    yield
-    
+
+@app.on_event("shutdown")
+def stop_background_thread():
+    global is_running, camera_thread
     is_running = False
     if camera_thread:
         camera_thread.join()
 
-app = FastAPI(lifespan=lifespan)
+
 
 @app.get("/api/telemetry")
 def get_telemetry():
