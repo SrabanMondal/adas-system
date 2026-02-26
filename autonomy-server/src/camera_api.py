@@ -33,7 +33,9 @@ is_running = False
 camera_thread = None
 
 def inference_loop():
-    import pycuda.autoinit 
+    import pycuda.driver as cuda
+    cuda.init()
+    ctx = cuda.Device(0).make_context()
     global is_running, telemetry
     
     cap = cv2.VideoCapture(0)
@@ -118,7 +120,7 @@ def inference_loop():
 
     cap.release()
     print("[INFO] Camera released. Inference thread stopped.")
-
+    ctx.pop()
 
 app = FastAPI()
 
