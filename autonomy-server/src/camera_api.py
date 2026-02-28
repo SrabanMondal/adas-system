@@ -69,7 +69,7 @@ def inference_loop():
             continue
             
         frame_idx += 1
-        if frame_idx % 4 != 0:
+        if frame_idx % 3 != 0:
             continue
             
         ret, frame = cap.retrieve()
@@ -84,24 +84,24 @@ def inference_loop():
         # Inference
         drive_logits = engine.infer(boxed)
         object_outputs = object_engine.infer(boxed)
-        print(f"[DEBUG] Drive Logits Shape: {drive_logits.shape}")
+        # print(f"[DEBUG] Drive Logits Shape: {drive_logits.shape}")
         # Postprocessing Road
         if drive_logits.shape[0] == 1:
             drive_mask_320 = (drive_logits[0] > 0).astype(np.uint8)
         else:
             drive_mask_320 = (drive_logits[1] > drive_logits[0]).astype(np.uint8)
-        print(f"[DEBUG] Drive Mask Unique Values: {np.unique(drive_mask_320)}")
+        # print(f"[DEBUG] Drive Mask Unique Values: {np.unique(drive_mask_320)}")
         drive_mask = unletterbox(drive_mask_320, frame.shape[:2])
         out = road_engine.process(drive_mask)
         center_pts = out["center_points"]
-        print(f"[DEBUG] Center Points: {len(center_pts)} - Sample: {center_pts[:5]}")
+        # print(f"[DEBUG] Center Points: {len(center_pts)} - Sample: {center_pts[:5]}")
         # Control MPC
         steer, traj = mpc.compute(
             road_mask=drive_mask,
             center_points=center_pts,
             gps_bias=0
         )
-        print("Raw Steer Value:", steer)
+        # print("Raw Steer Value:", steer)
         
         # Postprocessing Objects
         unletterboxed_objs = scale_boxes(object_outputs, frame.shape[:2])
