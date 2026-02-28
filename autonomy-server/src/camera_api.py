@@ -94,7 +94,7 @@ def inference_loop():
         drive_mask = unletterbox(drive_mask_320, frame.shape[:2])
         out = road_engine.process(drive_mask)
         center_pts = out["center_points"]
-        print(f"[DEBUG] Center Points: {center_pts.shape} - Sample: {center_pts[:5]}")
+        print(f"[DEBUG] Center Points: {len(center_pts)} - Sample: {center_pts[:5]}")
         # Control MPC
         steer, traj = mpc.compute(
             road_mask=drive_mask,
