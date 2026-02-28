@@ -101,6 +101,7 @@ def inference_loop():
             center_points=center_pts,
             gps_bias=0
         )
+        print("Raw Steer Value:", steer)
         
         # Postprocessing Objects
         unletterboxed_objs = scale_boxes(object_outputs, frame.shape[:2])

@@ -102,8 +102,9 @@ def main(demo: bool, morph: bool):
     t_pre = t_inf = t_post = t_write = 0.0
     n = 0
 
-    for _ in tqdm(range(frame_count)):
-        
+    for idx in tqdm(range(frame_count)):
+        if(idx % 3 != 0):
+            continue
         t0 = time.perf_counter()
         ret, frame = cap.read()
         vis = frame
@@ -152,7 +153,7 @@ def main(demo: bool, morph: bool):
                 center_points = center_pts,
                 gps_bias = 0
             )
-
+        print("Steer: ",steer," Brake: ",brake)
         if demo and overlay is not None:
             # lane_mask_orig  = unletterbox(lane_mask_640,  frame.shape[:2])
             overlay.fill(0)
